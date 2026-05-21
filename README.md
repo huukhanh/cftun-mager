@@ -215,30 +215,32 @@ Then delete the now-offline node from the dashboard so it doesn't linger.
 
 For hosts where you'd rather not touch systemd/launchd — NAS boxes, lab
 servers already running Compose stacks, ephemeral CI workers — the agent
-ships as a minimal multi-arch container. The image bundles `cloudflared`
-from Cloudflare's official image, so there's nothing else to install.
+ships as a minimal multi-arch container at
+[`ghcr.io/huukhanh/mager-agent`](https://github.com/huukhanh/pub-pkg/pkgs/container/mager-agent).
+It's public, so no `docker login` is required. The image bundles
+`cloudflared` from Cloudflare's official image — nothing else to install.
 
 ```bash
-git clone https://github.com/huukhanh/mager.git
-cd mager/agent
-cp .env.example .env
+mkdir mager-agent && cd mager-agent
+curl -fsSLO https://raw.githubusercontent.com/huukhanh/mager/main/agent/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/huukhanh/mager/main/agent/.env.example -o .env
 $EDITOR .env                          # set MAGER_WORKER_URL=...
-docker compose up -d --build
+docker compose up -d
 docker compose logs -f mager-agent
 ```
 
 After a few seconds the new node appears in the dashboard; add an ingress
-rule the same way you would for a bare-metal install.
+rule the same way you would for a bare-metal install. The compose file is
+also in the repo under `agent/docker-compose.yml` if you'd rather clone.
 
 **`docker run`** (no compose file):
 
 ```bash
-docker build -t mager-agent agent/
 docker run -d --name mager-agent --restart unless-stopped \
   --network host \
   -e MAGER_WORKER_URL=https://<your-worker>.workers.dev \
   -v mager-state:/var/lib/mager \
-  mager-agent
+  ghcr.io/huukhanh/mager-agent:latest
 ```
 
 Environment variables read by the container entrypoint:
@@ -272,6 +274,13 @@ be reached by container name without any of this.
 **Uninstall** the Docker deployment with `docker compose down -v` (the `-v`
 also drops the `mager-state` volume — omit it if you might re-install and
 want the node to keep its identity).
+
+**Image tags & packaging.** `:latest` tracks `main`. Releases are tagged
+`agent-vX.Y.Z` in this repo and published as the matching version tag on
+the image (e.g. `:0.3.0`). Every commit on `main` also publishes a
+`:sha-<short>` tag for pin-to-commit deployments. The full naming convention
+for packages under `huukhanh/pub-pkg` is documented in
+[`docs/packages.md`](docs/packages.md).
 
 ---
 

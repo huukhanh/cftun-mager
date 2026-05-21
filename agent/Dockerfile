@@ -36,4 +36,16 @@ VOLUME ["/var/lib/mager"]
 # cloudflared talks to Cloudflare over outbound HTTPS only; no inbound ports
 # need to be exposed.
 
+# OCI labels — the `image.source` label is what GHCR uses to attach this
+# package to a GitHub repository in the package sidebar. We intentionally
+# point at `huukhanh/pub-pkg` (a public packages hub) rather than the
+# mager source repo, so every package published under huukhanh/* shares
+# one discoverable parent.
+LABEL org.opencontainers.image.title="mager-agent" \
+      org.opencontainers.image.description="Mager — self-hosted Cloudflare Tunnel control-plane agent." \
+      org.opencontainers.image.source="https://github.com/huukhanh/pub-pkg" \
+      org.opencontainers.image.url="https://github.com/huukhanh/pub-pkg/pkgs/container/mager-agent" \
+      org.opencontainers.image.documentation="https://github.com/huukhanh/mager#run-the-agent-in-docker" \
+      org.opencontainers.image.licenses="MIT"
+
 ENTRYPOINT ["/entrypoint.sh"]

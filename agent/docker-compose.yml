@@ -12,9 +12,12 @@
 
 services:
   mager-agent:
+    # Pulled by default from GitHub Container Registry (public, no login).
+    # To build locally instead — e.g. when iterating on the agent — run
+    # `docker compose up -d --build`, which uses the build context below.
+    image: ghcr.io/huukhanh/mager-agent:${MAGER_IMAGE_TAG:-latest}
     build:
       context: .
-    image: mager-agent:local
     container_name: mager-agent
     restart: unless-stopped
     network_mode: host
