@@ -58,7 +58,7 @@ tunnel create` and a single DNS record is simpler.
 |----------------|------------|
 | `worker/`      | Cloudflare Worker — REST API, D1 schema, KV usage. Deployed by `wrangler`. |
 | `dashboard/`   | React + Vite admin UI. Deployed to Cloudflare Pages. |
-| `agent/`       | Go binary that runs on each Linux box and supervises `cloudflared`. |
+| `agent/`       | Go binary that runs on each Linux/macOS box (or in Docker) and supervises `cloudflared`. Includes `Dockerfile` + `docker-compose.yml`. |
 | `scripts/`     | `setup.sh`, `deploy.sh`, `install.sh` — the three commands you'll run. |
 
 ---
@@ -210,6 +210,77 @@ curl -fsSL "https://<your-worker>.workers.dev/install.sh" \
 ```
 
 Then delete the now-offline node from the dashboard so it doesn't linger.
+
+#### Run the agent in Docker
+
+For hosts where you'd rather not touch systemd/launchd — NAS boxes, lab
+servers already running Compose stacks, ephemeral CI workers — the agent
+ships as a minimal multi-arch container at
+[`ghcr.io/huukhanh/mager-agent`](https://github.com/huukhanh/pub-pkg/pkgs/container/mager-agent).
+It's public, so no `docker login` is required. The image bundles
+`cloudflared` from Cloudflare's official image — nothing else to install.
+
+```bash
+mkdir mager-agent && cd mager-agent
+curl -fsSLO https://raw.githubusercontent.com/huukhanh/mager/main/agent/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/huukhanh/mager/main/agent/.env.example -o .env
+$EDITOR .env                          # set MAGER_WORKER_URL=...
+docker compose up -d
+docker compose logs -f mager-agent
+```
+
+After a few seconds the new node appears in the dashboard; add an ingress
+rule the same way you would for a bare-metal install. The compose file is
+also in the repo under `agent/docker-compose.yml` if you'd rather clone.
+
+**`docker run`** (no compose file):
+
+```bash
+docker run -d --name mager-agent --restart unless-stopped \
+  --network host \
+  -e MAGER_WORKER_URL=https://<your-worker>.workers.dev \
+  -v mager-state:/var/lib/mager \
+  ghcr.io/huukhanh/mager-agent:latest
+```
+
+Environment variables read by the container entrypoint:
+
+| Variable                 | Default                       | Purpose                                          |
+|--------------------------|-------------------------------|--------------------------------------------------|
+| `MAGER_WORKER_URL`       | *(required)*                  | Worker URL — same one you'd pass `install.sh`    |
+| `MAGER_MACHINE_NAME`     | container hostname            | Name shown in the dashboard                      |
+| `MAGER_STATE_DIR`        | `/var/lib/mager`              | Where `node.id` is persisted (volume-mount this) |
+| `MAGER_CLOUDFLARED_PATH` | `/usr/local/bin/cloudflared`  | Path to the cloudflared binary inside the image  |
+
+**Networking.** The default `network_mode: host` lets the agent reach
+services on the Linux host as `localhost:<port>` — the same way the
+bare-metal install does. On Docker Desktop (macOS/Windows) host mode is
+limited; switch to bridge networking and target host services via
+`host.docker.internal`:
+
+```yaml
+# docker-compose.override.yml
+services:
+  mager-agent:
+    network_mode: bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+
+…then write ingress rules against `http://host.docker.internal:8088` instead
+of `http://localhost:8088`. Other containers on a shared Docker network can
+be reached by container name without any of this.
+
+**Uninstall** the Docker deployment with `docker compose down -v` (the `-v`
+also drops the `mager-state` volume — omit it if you might re-install and
+want the node to keep its identity).
+
+**Image tags & packaging.** `:latest` tracks `main`. Releases are tagged
+`agent-vX.Y.Z` in this repo and published as the matching version tag on
+the image (e.g. `:0.3.0`). Every commit on `main` also publishes a
+`:sha-<short>` tag for pin-to-commit deployments. The full naming convention
+for packages under `huukhanh/pub-pkg` is documented in
+[`docs/packages.md`](docs/packages.md).
 
 ---
 
