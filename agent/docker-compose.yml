@@ -1,0 +1,33 @@
+# Minimal docker-compose deployment for mager-agent.
+#
+# Usage:
+#   cd agent
+#   cp .env.example .env       # then edit MAGER_WORKER_URL
+#   docker compose up -d
+#
+# host networking is the default because the most common case is "expose a
+# service already running on this Linux host" (e.g. localhost:8088). On
+# Docker Desktop (macOS/Windows) host mode behaves differently — see the
+# README's Docker section for the bridge-network alternative.
+
+services:
+  mager-agent:
+    build:
+      context: .
+    image: mager-agent:local
+    container_name: mager-agent
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # Required. Same Worker URL the install script uses.
+      MAGER_WORKER_URL: ${MAGER_WORKER_URL:?MAGER_WORKER_URL is required — see .env.example}
+      # Optional. Defaults to the container's hostname when unset.
+      MAGER_MACHINE_NAME: ${MAGER_MACHINE_NAME:-}
+    volumes:
+      # Persist node identity (node.id) across container recreates. Without
+      # this, the agent registers as a fresh node every time the container
+      # is replaced.
+      - mager-state:/var/lib/mager
+
+volumes:
+  mager-state:
